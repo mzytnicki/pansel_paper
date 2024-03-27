@@ -120,7 +120,7 @@ ChromHMM results
             awk '$10 > 0' Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_${i}.coverage.refGene.bed | wc -l | tr -d "\n"
             echo -e "\t#genes"
         done >> $out
-done
+    done
 
 ### Compute conservation scores
 
@@ -129,8 +129,8 @@ done
         for i in Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_?.bed
         do
           multiBigwigSummary BED-file --bwfiles Data/Annotations/hg38.phyloP100way.bw --BED $i -o tmp.npz --outRawCounts ${i%bed}phyloP.tsv
+        done
     done
-done
 
 ### Compute ChromHmm
 
@@ -149,6 +149,6 @@ done
 ### Plot figures
 
     for resolution in 1000 10000 100000
-do
+    do
         Rscript gatherAll.R Results/${resolution}/variants.tsv Results/${resolution}/phyloP.tsv Results/${resolution}/n_genes.tsv Results/${resolution}/chromHmm.tsv '#variants,conservation,#genes,HET,Tx' Results/${resolution}/scores.png
     done
