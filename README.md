@@ -46,7 +46,7 @@ ChromHMM results
 
 ## Analysis
 
-## Compute pansel results for different resolutions
+### Compute pansel results for different resolutions
 
     for resolution in 1000 10000 100000
     do
@@ -56,14 +56,14 @@ ChromHMM results
         done > Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.tsv
     done
 
-## Exclude gaps, and divide into different 8 bins (most conserved, to least conserved)
+### Exclude gaps, and divide into different 8 bins (most conserved, to least conserved)
 
     for resolution in 1000 10000 100000
     do
         python3 divideRegions.py Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.tsv ${resolution} Data/Annotations/hg38.gaps.bed 8 Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions
     done
 
-## Transform `pansel` results to BED format
+### Transform `pansel` results to BED format
 
     for binSize in 1000 10000 100000
     do
@@ -73,14 +73,14 @@ ChromHMM results
         done | awk '{print $1 "\t" ($3-1) "\t" $4 "\tbin_" NR "\t" ($5 / ($4 - $3)) "\t+"}' > Results/${binSize}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.bed
     done
 
-## Fit to conserved/divergent distributions
+### Fit to conserved/divergent distributions
 
     for binSize in 1000 10000 100000
     do
         Rscript computeNPathThreshold.R -i Results/${binSize}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.bed -b ${binSize} -p 0.05 -P 0.05 -t Results/${binSize}/fitConserved.png -o Results/${binSize}/fitConserved.bed -T Results/${binSize}/fitDivergent.png -O /Scratch/mazytnicki/PanSel/Results/${binSize}/fitDivergent.bed &> Results/${binSize}/fit.log
     done
 
-## Compute number of overlaps with structural variations
+### Compute number of overlaps with structural variations
 
     for resolution in 1000 10000 100000
     do
@@ -94,7 +94,7 @@ ChromHMM results
         done >> $out
     done
 
-## Compute average conservation score
+### Compute average conservation score
 
     for resolution in 1000 10000 100000
     do
@@ -108,7 +108,7 @@ ChromHMM results
         done > Results/${resolution}/chromHmmResults.txt
     done
 
-## Compute number of overlaps with exons
+### Compute number of overlaps with exons
 
     for resolution in 1000 10000 100000
     do
@@ -122,7 +122,7 @@ ChromHMM results
         done >> $out
 done
 
-## Compute conservation scores
+### Compute conservation scores
 
     for resolution in 1000 10000 100000
     do
@@ -132,7 +132,7 @@ done
     done
 done
 
-## Compute ChromHmm
+### Compute ChromHmm
 
     for resolution in 1000 10000 100000
     do
@@ -146,7 +146,7 @@ done
         done > Results/${resolution}/chromHmmResults.txt
     done
 
-## Plot figures
+### Plot figures
 
     for resolution in 1000 10000 100000
 do
