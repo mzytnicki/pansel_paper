@@ -1,93 +1,154 @@
-# pansel_paper
+# Analysis for the `pansel` paper
 
+## Architecture
 
+    - Data
+      - Graphs
+      - Annotations
+    - Results
+      - 1000
+      - 10000
+      - 100000
 
-## Getting started
+## Download data
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+### Graphs
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+    cd Data/Graphs
+    for i in `seq 2 22`
+    do
+      wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2022_03_11_minigraph_cactus/chrom-graphs-hprc-v1.1-mc-chm13-full/chr${i}.vg
+      ~/bin/vg view chr${i}.vg | gzip -c > chr_${i}_hprc-v1.1-mc-chm13-full.gfa.gz
+      rm chr${i}.vg
+    done
 
-## Add your files
+### Annotations
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+HG38 gaps
 
-```
-cd existing_repo
-git remote add origin https://forgemia.inra.fr/pepragrodiv/pangenome/pansel_paper.git
-git branch -M main
-git push -uf origin main
-```
+    wget -O - https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.agp.gz | gzip -dc | awk '($5 == "N") || ($5 == "U")' | cut -f 1-3 > Data/Annotations/Annotationshg38.gaps.bed
 
-## Integrate with your tools
+Structural variations
 
-- [ ] [Set up project integrations](https://forgemia.inra.fr/pepragrodiv/pangenome/pansel_paper/-/settings/integrations)
+    wget -O - https://ftp.ncbi.nlm.nih.gov/pub/dbVar/data/Homo_sapiens/by_assembly/GRCh38/vcf/GRCh38.variant_call.all.vcf.gz | gzip -dc | sed '/^#/! s/^/chr/g' | grep -v "" > Data/Annotations/GRCh38.variant_call.all.vcf
 
-## Collaborate with your team
+Conservation, from PhyloP
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+    wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/phyloP100way/hg38.phyloP100way.bw
 
-## Test and Deploy
+Coding exons
 
-Use the built-in continuous integration in GitLab.
+    wget -O - https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz | gzip -dc | awk '$3 == "exon"' | grep 'gene_type "protein_coding"' > Data/Annotations/gencode.v44.annotation_coding_exons.gtf
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+ChromHMM results
 
-***
+    wget https://public.hoffman2.idre.ucla.edu/ernst/2K9RS//full_stack/full_stack_annotation_public_release/hg38/hg38_genome_100_segments.bed.gz
 
-# Editing this README
+## Analysis
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+## Compute pansel results for different resolutions
 
-## Suggestions for a good README
+    for resolution in 1000 10000 100000
+    do
+        for i in `seq 1 22`
+        do
+          sed "s/^/chr${i}\t/g" Data/Graphs/chr_${i}_hprc-v1.1-mc-chm13-full_GRCh38.0.chr${i}.tsv
+        done > Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.tsv
+    done
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Exclude gaps, and divide into different 8 bins (most conserved, to least conserved)
 
-## Name
-Choose a self-explaining name for your project.
+    for resolution in 1000 10000 100000
+    do
+        python3 divideRegions.py Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.tsv ${resolution} Data/Annotations/hg38.gaps.bed 8 Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions
+    done
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## Transform `pansel` results to BED format
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+    for binSize in 1000 10000 100000
+    do
+        for i in `seq 1 22`
+        do
+            sed "s/^/chr${i}\t/g" Results/${binSize}/chr_${i}_hprc-v1.1-mc-chm13-full_GRCh38.0.chr${i}.tsv
+        done | awk '{print $1 "\t" ($3-1) "\t" $4 "\tbin_" NR "\t" ($5 / ($4 - $3)) "\t+"}' > Results/${binSize}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.bed
+    done
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## Fit to conserved/divergent distributions
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+    for binSize in 1000 10000 100000
+    do
+        Rscript computeNPathThreshold.R -i Results/${binSize}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.bed -b ${binSize} -p 0.05 -P 0.05 -t Results/${binSize}/fitConserved.png -o Results/${binSize}/fitConserved.bed -T Results/${binSize}/fitDivergent.png -O /Scratch/mazytnicki/PanSel/Results/${binSize}/fitDivergent.bed &> Results/${binSize}/fit.log
+    done
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## Compute number of overlaps with structural variations
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+    for resolution in 1000 10000 100000
+    do
+        out=Results/${resolution}/variants.tsv
+        echo -e "category\tscore\ttype" > $out
+        for i in $( seq 0 7 )
+        do 
+            echo -e -n "$i\t"
+            bedtools intersect -a Data/Annotations/GRCh38.variant_call.all.vcf -b Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_${i}.bed -u | wc -l | tr -d "\n"
+            echo -e "\t#variants"
+        done >> $out
+    done
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Compute average conservation score
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+    for resolution in 1000 10000 100000
+    do
+        for i in Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_?.bed
+        do
+          for j in Acet BivProm DNase EnhA EnhWk GapArtf HET PromF Quies ReprPC TSS Tx TxEnh TxEx TxWk znf
+          do
+            echo -n $i" "$j" "
+            bedtools intersect -a Data/Annotations/hg38_genome_100_segments.${j}.bed -b $i | awk 'BEGIN{s = 0}{s += $3 - $2}END{print s}'
+          done
+        done > Results/${resolution}/chromHmmResults.txt
+    done
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+## Compute number of overlaps with exons
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+    for resolution in 1000 10000 100000
+    do
+        out=Results/${resolution}/n_genes.tsv
+        echo -e "category\tscore\ttype" > $out
+        for i in $( seq 0 7 )
+        do
+            echo -e -n $i "\t"
+            awk '$10 > 0' Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_${i}.coverage.refGene.bed | wc -l | tr -d "\n"
+            echo -e "\t#genes"
+        done >> $out
+done
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Compute conservation scores
 
-## License
-For open source projects, say how it is licensed.
+    for resolution in 1000 10000 100000
+    do
+        for i in Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_?.bed
+        do
+          multiBigwigSummary BED-file --bwfiles Data/Annotations/hg38.phyloP100way.bw --BED $i -o tmp.npz --outRawCounts ${i%bed}phyloP.tsv
+    done
+done
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+## Compute ChromHmm
+
+    for resolution in 1000 10000 100000
+    do
+        for i in Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_?.bed
+        do
+          for j in Acet BivProm DNase EnhA EnhWk GapArtf HET PromF Quies ReprPC TSS Tx TxEnh TxEx TxWk znf
+          do
+            echo -n $i" "$j" "
+            bedtools intersect -a Data/Annotations/hg38_genome_100_segments.${j}.bed -b $i | awk 'BEGIN{s = 0}{s += $3 - $2}END{print s}'
+          done
+        done > Results/${resolution}/chromHmmResults.txt
+    done
+
+## Plot figures
+
+    for resolution in 1000 10000 100000
+do
+        Rscript gatherAll.R Results/${resolution}/variants.tsv Results/${resolution}/phyloP.tsv Results/${resolution}/n_genes.tsv Results/${resolution}/chromHmm.tsv '#variants,conservation,#genes,HET,Tx' Results/${resolution}/scores.png
+    done
