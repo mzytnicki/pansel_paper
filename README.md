@@ -77,7 +77,7 @@ ChromHMM results
 
     for binSize in 1000 10000 100000
     do
-        Rscript getExtremes.R -i Results/${binSize}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.bed -b ${binSize} -p 0.05 -P 0.05 -t Results/${binSize}/fit.png -o Results/${binSize}/fitConserved.bed -O /Scratch/mazytnicki/PanSel/Results/${binSize}/fitDivergent.bed &> Results/${binSize}/fit.log
+        Rscript getExtremes.R -i Results/${binSize}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.bed -p 0.05 -P 0.05 -t Results/${binSize}/fit.png -o Results/${binSize}/fitConserved.bed -O /Scratch/mazytnicki/PanSel/Results/${binSize}/fitDivergent.bed &> Results/${binSize}/fit.log
     done
 
 ### Compute number of overlaps with structural variations
