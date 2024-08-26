@@ -18,7 +18,7 @@
     for i in `seq 2 22`
     do
       wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2022_03_11_minigraph_cactus/chrom-graphs-hprc-v1.1-mc-chm13-full/chr${i}.vg
-      ~/bin/vg view chr${i}.vg | gzip -c > chr_${i}_hprc-v1.1-mc-chm13-full.gfa.gz
+      vg convert -fW chr${i}.vg | gzip -c > chr_${i}_hprc-v1.1-mc-chm13-full.gfa.gz
       rm chr${i}.vg
     done
 
