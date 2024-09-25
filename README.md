@@ -5,6 +5,8 @@
     - Data
       - Graphs
       - Annotations
+      - Genomes
+      - Alignments
     - Results
       - 1000
       - 10000
@@ -43,6 +45,19 @@ Coding exons
 ChromHMM results
 
     wget https://public.hoffman2.idre.ucla.edu/ernst/2K9RS//full_stack/full_stack_annotation_public_release/hg38/hg38_genome_100_segments.bed.gz
+
+Human alignments in HAL format
+
+    wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2022_03_11_minigraph_cactus/hprc-v1.1-mc-grch38-full.hal
+
+List of separate genomes
+
+    wget -c https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/y1v2_all/hprc.y1v2.fa.gz
+
+Conserved regions (PSTs)
+
+    wget --no-check-certificate https://dna-discovery.stanford.edu/publicmaterial/datasets/pangenome/pst-31mer.grch38.bed.gz
+
 
 ## Analysis
 
@@ -131,6 +146,32 @@ ChromHMM results
           multiBigwigSummary BED-file --bwfiles Data/Annotations/hg38.phyloP100way.bw --BED $i -o tmp.npz --outRawCounts ${i%bed}phyloP.tsv
         done
     done
+
+### Run PhastCons
+
+    zgrep '^>' Data/Genomes/hprc.y1v2.fa.gz  | cut -c 2- > Data/Genomes/hprc.y1v2.chr.listset
+    # Drop haplotypes
+    rev Data/Genomes/hprc.y1v2.chr.listset | cut -f 2-3 -d "#" | rev | sort -u > Data/Genomes/hprc.y1v2.listset
+    # Extract individual genomes
+    while IFS= read -r line
+        do
+        grep $line Data/Genomes/hprc.y1v2.chr.listset > Data/Genomes/selected.listset
+        seqtk subseq Data/Genomes/hprc.y1v2.fa.gz Data/Genomes/selected.listset | pigz -c -p 10 > Data/Genomes/hprc.y1v2.${line}.fa.gz
+    done < Data/Genomes/hprc.y1v2.listset
+    # Compute mash distance
+    mashtree --numcpus 12 Data/Genomes/hprc.y1v2.*.fa.gz --outmatrix Data/Genomes/phylip.tsv > Data/Genomes/mashtree.dnd
+    # Convert HAL 2 MAF
+    cactus-hal2maf ./js Data/Alignments/hprc-v1.1-mc-grch38-full.hal Data/Alignments/hprc-v1.1-mc-grch38-full.maf.gz --noAncestors --refGenome GRCh38 --filterGapCausingDupes --chunkSize 100000 --batchCores 10 --batchCount 10 --noAncestors --batchParallelTaf 10 --batchSystem slurm --logFile Data/Alignments/hprc-v1.1-mc-grch38-full.maf.gz.log --caching=false
+    # Extract alignment of chr1 
+    grep -A 5 -B 5 -m 2 -n "maf version=1 scoring=N/A" Data/Alignments/hprc-v1.1-mc-grch38-full.maf
+    head -11265399 Data/Alignments/hprc-v1.1-mc-grch38-full.maf > Data/Alignments/hprc-v1.1-mc-grch38-chr1.maf
+    # Run a script to fix names
+    fixNames.py
+    # Run PhyloFit to get neutral model
+    phyloFit --tree Data/Genomes/mashtree_fix.dnd --msa-format MAF Data/Alignments/hprc-v1.1-mc-grch38-chr1_fix.maf > Data/Alignments/neutralmodel.mod
+    # Run a script to split MAF file to chromosomes
+    
+
 
 ### Compute ChromHmm
 
