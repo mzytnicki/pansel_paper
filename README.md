@@ -168,11 +168,48 @@ Conserved regions (PSTs)
     # Run a script to fix names
     fixNames.py
     # Run PhyloFit to get neutral model
-    phyloFit --tree Data/Genomes/mashtree_fix.dnd --msa-format MAF Data/Alignments/hprc-v1.1-mc-grch38-chr1_fix.maf > Data/Alignments/neutralmodel.mod
+    phyloFit --tree Data/Genomes/mashtree_fix.dnd --msa-format MAF Data/Alignments/hprc-v1.1-mc-grch38-chr1_fix.maf > Data/Alignments/phyloFit.mod
     # Run a script to split MAF file to chromosomes
-    
+    splitMaf.py
+    # Run PhastCons (PhyloP did not work, see https://github.com/CshlSiepelLab/phast/issues/69)
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 MT X Y
+    do
+        phastCons Data/Alignments/hprc-v1.1-mc-grch38-chr${i}.maf Data/Alignments/phyloFit.mod > Data/Alignments/phyloPscores_${i}.wig
+    done
+    # Transform WIG to BigWig
+    for i in $(seq 22); do echo sed "s/(null)/chr$i/g" Data/Alignments/phyloPscores_${i}.wig; done > Data/Alignments/phyloPscores.wig
+    wigToBigWig Data/Alignments/phyloPscores.wig Data/Genomes/hs.size Data/Alignments/phyloPscores.bw # Requires 40GB RAM
 
+    for resolution in 1000 10000 100000
+    do
+        for i in Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_?.bed
+        do
+          out=${i%bed}phyloP_human.tsv
+          rm -f $out
+          multiBigwigSummary BED-file --bwfiles Data/Alignments/phyloPscores.bw --BED $i -o tmp.npz --outRawCounts ${out}
+        done
+    done
 
+### PSTs
+
+    for resolution in 1000 10000 100000
+    do
+        out=Results/${resolution}/conserved.tsv
+        echo -e "category\tscore\ttype" > $out
+        for i in $( seq 0 7 )
+        do 
+            echo -e -n "$i\t"
+            bedtools intersect -a Data/Annotations/pst-31mer.grch38.bed.gz -b Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_${i}.bed -u | wc -l | tr -d "\n"
+            echo -e "\tPST"
+        done >> $out
+    done
+
+### Use Corer (unsuccessful)
+
+    ls -l Data/Genomes/hprc.y1v2.*.fa.gz | tr -s ' ' | cut -d' ' -f9 > Data/Genomes/list.txt
+    Bifrost build -r Data/Genomes/list.txt -o Data/Results/bifrost -c -t 20  # Requires 160GB RAM
+    Corer -i Data/Results/bifrost.gfa.gz -c Data/Results/bifrost.color.bfg -o Data/Results/core -q 90 -d 60 -t 80 # This takes more than 4 days
+        
 ### Compute ChromHmm
 
     for resolution in 1000 10000 100000
@@ -187,9 +224,31 @@ Conserved regions (PSTs)
         done > Results/${resolution}/chromHmmResults.txt
     done
 
-### Plot figures
+### Plot score figures
 
     for resolution in 1000 10000 100000
     do
-        Rscript gatherAll.R Results/${resolution}/variants.tsv Results/${resolution}/phyloP.tsv Results/${resolution}/n_genes.tsv Results/${resolution}/chromHmm.tsv '#variants,conservation,#genes,HET,Tx' Results/${resolution}/scores.png
+        Rscript gatherAll.R Results/${resolution}/variants.tsv Results/${resolution}/phyloP.tsv Results/${resolution}/phyloP_human.tsv Results/${resolution}/conserved.tsv Results/${resolution}/n_genes.tsv Results/${resolution}/chromHmm.tsv '#variants,conservation,cons. HS,PST,#genes,HET,Tx' Results/${resolution}/scores.png
     done
+
+### Extract subgraph for Bandage-NG (for NBPF20, aka ENSG00000162825.18)
+
+    # Find genomic positions
+    grep ENSG00000162825.18 Data/Annotations/gencode.v44.annotation.gtf | awk '$3 == "gene"'
+    # Convert the right gfa to og format
+    odgi build -g Data/Graphs/chr_1_hprc-v1.1-mc-chm13-full.gfa -o Data/Graphs/chr_1_hprc-v1.1-mc-chm13-full.og -P -t 10
+    # Extract the sub-graph around the gene
+    odgi extract -i Data/Graphs/chr_1_hprc-v1.1-mc-chm13-full.og -r GRCh38.0.chr1:145289900-145425603 -o tmp.og -t 10 -P
+    # Remove spurious _MINIGRAPH_ paths
+    odgi view -i tmp.og -g -t 10 -P | grep -v MINIGRAPH > tmp.gfa
+    # Convert again to og
+    odgi build -g tmp.gfa -o tmp.og -P -t 10 -s -O
+    # Transform exon GFF lines to BED
+    grep ENSG00000162825.18 Data/Annotations/gencode.v44.annotation.gtf | gff2bed | awk '$8 == "exon"' | cut -f 1-6 | sort -u | awk '{$1 = "GRCh38.0.chr1"; $4 = "ENSG00000162825.18_" NR; print}' | tr " " "\t" > tmp.bed
+    # Adapt bed, so that it is on the right path
+    odgi procbed -i tmp.og -b tmp.bed > tmp.proc.bed
+    # Set the bed as a path
+    odgi inject -i tmp.og -b tmp.proc.bed -o tmp2.og
+    # Sort, and visualize
+    odgi sort -i tmp2.og -o - -O | odgi viz -i - -o tmp.png -s '#' -P -t 10
+    odgi view -i tmp2.og -g > Results/NBPF20.gfa
