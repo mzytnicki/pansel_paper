@@ -8,10 +8,15 @@
       - Genomes
       - Alignments
     - Results
-      - 1000
-      - 10000
-      - 100000
-
+      - MGC # MiniGraph-Cactus
+        - 1000
+        - 10000
+        - 100000
+      - PGGB
+        - 1000
+        - 10000
+        - 100000
+        
 ## Download data
 
 ### Graphs
@@ -20,7 +25,7 @@
     for i in `seq 1 22`
     do
       wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2022_03_11_minigraph_cactus/chrom-graphs-hprc-v1.1-mc-chm13-full/chr${i}.vg
-      vg convert -fW chr${i}.vg | gzip -c > chr_${i}_hprc-v1.1-mc-chm13-full.gfa.gz
+      vg convert -fW chr${i}.vg | gzip -c > chr${i}.gfa.gz
       rm chr${i}.vg
     done
 
@@ -59,7 +64,7 @@ Conserved regions (PSTs)
     wget --no-check-certificate https://dna-discovery.stanford.edu/publicmaterial/datasets/pangenome/pst-31mer.grch38.bed.gz
 
 
-## Analysis
+## Analysis with MiniGraph-Cactus
 
 ### Compute pansel results for different resolutions
 
@@ -67,15 +72,15 @@ Conserved regions (PSTs)
     do
         for i in `seq 1 22`
         do
-          sed "s/^/chr${i}\t/g" Data/Graphs/chr_${i}_hprc-v1.1-mc-chm13-full_GRCh38.0.chr${i}.tsv
-        done > Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.tsv
+          sed "s/^/chr${i}\t/g" Data/Graphs/chr${i}.tsv
+        done > Results/MGC/${resolution}/chrall.tsv
     done
 
 ### Exclude gaps, and divide into different 8 bins (most conserved, to least conserved)
 
     for resolution in 1000 10000 100000
     do
-        python3 divideRegions.py Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.tsv ${resolution} Data/Annotations/hg38.gaps.bed 8 Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions
+        python3 divideRegions.py Results/MGC/${resolution}/chrall.tsv ${resolution} Data/Annotations/hg38.gaps.bed 8 Results/MGC/${resolution}/chrall.regions
     done
 
 ### Transform `pansel` results to BED format
@@ -84,27 +89,27 @@ Conserved regions (PSTs)
     do
         for i in `seq 1 22`
         do
-            sed "s/^/chr${i}\t/g" Results/${binSize}/chr_${i}_hprc-v1.1-mc-chm13-full_GRCh38.0.chr${i}.tsv
-        done | awk '{print $1 "\t" ($3-1) "\t" $4 "\tbin_" NR "\t" ($5 / ($4 - $3)) "\t+"}' > Results/${binSize}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.bed
+            sed "s/^/chr${i}\t/g" Results/MGC/${binSize}/chr${i}.tsv
+        done | awk '{print $1 "\t" ($3-1) "\t" $4 "\tbin_" NR "\t" ($5 / ($4 - $3)) "\t+"}' > Results/MGC/${binSize}/chrall.bed
     done
 
 ### Fit to conserved/divergent distributions
 
     for binSize in 1000 10000 100000
     do
-        Rscript getExtremes.R -i Results/${binSize}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.bed -p 0.05 -P 0.05 -t Results/${binSize}/fit.png -o Results/${binSize}/fitConserved.bed -O /Scratch/mazytnicki/PanSel/Results/${binSize}/fitDivergent.bed &> Results/${binSize}/fit.log
+        Rscript getExtremes.R -i Results/MGC/${binSize}/chrall.bed -p 0.05 -P 0.05 -t Results/MGC/${binSize}/fit.png -o Results/MGC/${binSize}/fitConserved.bed -O Results/MGC/${binSize}/fitDivergent.bed &> Results/MGC/${binSize}/fit.log
     done
 
 ### Compute number of overlaps with structural variations
 
     for resolution in 1000 10000 100000
     do
-        out=Results/${resolution}/variants.tsv
+        out=Results/MGC/${resolution}/variants.tsv
         echo -e "category\tscore\ttype" > $out
         for i in $( seq 0 7 )
         do 
             echo -e -n "$i\t"
-            bedtools intersect -a Data/Annotations/GRCh38.variant_call.all.vcf -b Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_${i}.bed -u | wc -l | tr -d "\n"
+            bedtools intersect -a Data/Annotations/GRCh38.variant_call.all.vcf -b Results/MGC/${resolution}/chrall.regions_${i}.bed -u | wc -l | tr -d "\n"
             echo -e "\t#variants"
         done >> $out
     done
@@ -113,26 +118,26 @@ Conserved regions (PSTs)
 
     for resolution in 1000 10000 100000
     do
-        for i in Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_?.bed
+        for i in Results/MGC/${resolution}/chrall.regions_?.bed
         do
           for j in Acet BivProm DNase EnhA EnhWk GapArtf HET PromF Quies ReprPC TSS Tx TxEnh TxEx TxWk znf
           do
             echo -n $i" "$j" "
             bedtools intersect -a Data/Annotations/hg38_genome_100_segments.${j}.bed -b $i | awk 'BEGIN{s = 0}{s += $3 - $2}END{print s}'
           done
-        done > Results/${resolution}/chromHmmResults.txt
+        done > Results/MGC/${resolution}/chromHmmResults.txt
     done
 
 ### Compute number of overlaps with exons
 
     for resolution in 1000 10000 100000
     do
-        out=Results/${resolution}/n_genes.tsv
+        out=Results/MGC/${resolution}/n_genes.tsv
         echo -e "category\tscore\ttype" > $out
         for i in $( seq 0 7 )
         do
             echo -e -n $i "\t"
-            awk '$10 > 0' Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_${i}.coverage.refGene.bed | wc -l | tr -d "\n"
+            awk '$10 > 0' Results/MGC/${resolution}/chrall.regions_${i}.coverage.refGene.bed | wc -l | tr -d "\n"
             echo -e "\t#genes"
         done >> $out
     done
@@ -141,7 +146,7 @@ Conserved regions (PSTs)
 
     for resolution in 1000 10000 100000
     do
-        for i in Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_?.bed
+        for i in Results/MGC/${resolution}/chrall.regions_?.bed
         do
           multiBigwigSummary BED-file --bwfiles Data/Annotations/hg38.phyloP100way.bw --BED $i -o tmp.npz --outRawCounts ${i%bed}phyloP.tsv
         done
@@ -182,7 +187,7 @@ Conserved regions (PSTs)
 
     for resolution in 1000 10000 100000
     do
-        for i in Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_?.bed
+        for i in Results/MGC/${resolution}/chrall.regions_?.bed
         do
           out=${i%bed}phyloP_human.tsv
           rm -f $out
@@ -194,12 +199,12 @@ Conserved regions (PSTs)
 
     for resolution in 1000 10000 100000
     do
-        out=Results/${resolution}/conserved.tsv
+        out=Results/MGC/${resolution}/conserved.tsv
         echo -e "category\tscore\ttype" > $out
         for i in $( seq 0 7 )
         do 
             echo -e -n "$i\t"
-            bedtools intersect -a Data/Annotations/pst-31mer.grch38.bed.gz -b Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_${i}.bed -u | wc -l | tr -d "\n"
+            bedtools intersect -a Data/Annotations/pst-31mer.grch38.bed.gz -b Results/MGC/${resolution}/chrall.regions_${i}.bed -u | wc -l | tr -d "\n"
             echo -e "\tPST"
         done >> $out
     done
@@ -207,28 +212,28 @@ Conserved regions (PSTs)
 ### Use Corer (unsuccessful)
 
     ls -l Data/Genomes/hprc.y1v2.*.fa.gz | tr -s ' ' | cut -d' ' -f9 > Data/Genomes/list.txt
-    Bifrost build -r Data/Genomes/list.txt -o Data/Results/bifrost -c -t 20  # Requires 160GB RAM
-    Corer -i Data/Results/bifrost.gfa.gz -c Data/Results/bifrost.color.bfg -o Data/Results/core -q 90 -d 60 -t 80 # This takes more than 4 days
+    Bifrost build -r Data/Genomes/list.txt -o Results/bifrost -c -t 20  # Requires 160GB RAM
+    Corer -i Results/bifrost.gfa.gz -c Results/bifrost.color.bfg -o Results/core -q 90 -d 60 -t 80 # This takes more than 4 days
         
 ### Compute ChromHmm
 
     for resolution in 1000 10000 100000
     do
-        for i in Results/${resolution}/chr_all_hprc-v1.1-mc-chm13-full_GRCh38.0.chrall.regions_?.bed
+        for i in Results/MGC/${resolution}/chrall.regions_?.bed
         do
           for j in Acet BivProm DNase EnhA EnhWk GapArtf HET PromF Quies ReprPC TSS Tx TxEnh TxEx TxWk znf
           do
             echo -n $i" "$j" "
             bedtools intersect -a Data/Annotations/hg38_genome_100_segments.${j}.bed -b $i | awk 'BEGIN{s = 0}{s += $3 - $2}END{print s}'
           done
-        done > Results/${resolution}/chromHmmResults.txt
+        done > Results/MGC/${resolution}/chromHmmResults.txt
     done
 
 ### Plot score figures
 
     for resolution in 1000 10000 100000
     do
-        Rscript gatherAll.R Results/${resolution}/variants.tsv Results/${resolution}/phyloP.tsv Results/${resolution}/phyloP_human.tsv Results/${resolution}/conserved.tsv Results/${resolution}/n_genes.tsv Results/${resolution}/chromHmm.tsv '#variants,conservation,cons. HS,PST,#genes,HET,Tx' Results/${resolution}/scores.png
+        Rscript gatherAll.R Results/MGC/${resolution}/variants.tsv Result/MGC/${resolution}/phyloP.tsv Results/MGC/${resolution}/phyloP_human.tsv Results/MGC/${resolution}/conserved.tsv Results/MGC/${resolution}/n_genes.tsv Results/MGC/${resolution}/chromHmm.tsv '#variants,conservation,cons. HS,PST,#genes,HET,Tx' Results/MGC/${resolution}/scores.png
     done
 
 ### Extract subgraph for Bandage-NG (for NBPF20, aka ENSG00000162825.18)
