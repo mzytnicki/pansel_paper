@@ -4,11 +4,13 @@
 
     - Data
       - Graphs
+        - MGC # MiniGraph-Cactus
+        - PGGB
       - Annotations
       - Genomes
       - Alignments
     - Results
-      - MGC # MiniGraph-Cactus
+      - MGC
         - 1000
         - 10000
         - 100000
@@ -21,12 +23,22 @@
 
 ### Graphs
 
-    cd Data/Graphs
+#### MiniGraph-Cactus
+
+    cd Data/Graphs/MGC
     for i in `seq 1 22`
     do
       wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2022_03_11_minigraph_cactus/chrom-graphs-hprc-v1.1-mc-chm13-full/chr${i}.vg
       vg convert -fW chr${i}.vg | gzip -c > chr${i}.gfa.gz
       rm chr${i}.vg
+    done
+
+#### PGGB
+
+    cd Data/Graphs/PGGB
+    for i in `seq 1 22`
+    do
+      wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2021_07_30_pggb/chroms/chr${i}.pan.fa.a2fb268.e820cd3.9ea71d8.smooth.gfa.gz && mv chr${i}.pan.fa.a2fb268.e820cd3.9ea71d8.smooth.gfa.gz chr${i}.gfa.gz
     done
 
 ### Annotations
@@ -257,3 +269,8 @@ Conserved regions (PSTs)
     # Sort, and visualize
     odgi sort -i tmp2.og -o - -O | odgi viz -i - -o tmp.png -s '#' -P -t 10
     odgi view -i tmp2.og -g > Results/NBPF20.gfa
+    
+## Comparison between MiniGraph-Cactus and PGGB
+
+    Rscript compareResults.R Results Results/comparisonMGC_PGGB.png &> Results/comparisonMGC_PGGB.log
+
