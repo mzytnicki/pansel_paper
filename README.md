@@ -43,7 +43,7 @@
       wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2021_07_30_pggb/chroms/chr${i}.pan.fa.a2fb268.e820cd3.9ea71d8.smooth.gfa.gz && mv chr${i}.pan.fa.a2fb268.e820cd3.9ea71d8.smooth.gfa.gz chr${i}.gfa.gz
     done
 
-### Create graph for the *M_xanthus*
+### Create graph for *M_xanthus*
 
     singularity exec docker://quay.io/comparative-genomics-toolkit/cactus:latest cactus-pangenome ./js ./seqfiles.txt --outDir ./Data/Graphs/M_xanthus --outName m_xanthus --reference GCA_000012685.1 --mgCores 12 --mapCores 12 --consCores 12 --gfa full
 
