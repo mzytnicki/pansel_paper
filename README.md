@@ -6,6 +6,7 @@
       - Graphs
         - MGC # MiniGraph-Cactus
         - PGGB
+        - M_xanthus
       - Annotations
       - Genomes
       - Alignments
@@ -18,6 +19,7 @@
         - 1000
         - 10000
         - 100000
+      - M_xanthus
         
 ## Download data
 
@@ -40,6 +42,10 @@
     do
       wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2021_07_30_pggb/chroms/chr${i}.pan.fa.a2fb268.e820cd3.9ea71d8.smooth.gfa.gz && mv chr${i}.pan.fa.a2fb268.e820cd3.9ea71d8.smooth.gfa.gz chr${i}.gfa.gz
     done
+
+### Create graph for the *M_xanthus*
+
+    singularity exec docker://quay.io/comparative-genomics-toolkit/cactus:latest cactus-pangenome ./js ./seqfiles.txt --outDir ./Data/Graphs/M_xanthus --outName m_xanthus --reference GCA_000012685.1 --mgCores 12 --mapCores 12 --consCores 12 --gfa full
 
 ### Annotations
 
@@ -75,7 +81,10 @@ Conserved regions (PSTs)
 
     wget --no-check-certificate https://dna-discovery.stanford.edu/publicmaterial/datasets/pangenome/pst-31mer.grch38.bed.gz
 
+*M. xanthus* annotation
 
+    wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/012/685/GCA_000012685.1_ASM1268v1/GCA_000012685.1_ASM1268v1_genomic.gtf.gz
+    
 ## Analysis with MiniGraph-Cactus
 
 ### Compute pansel results for different resolutions
