@@ -28,7 +28,7 @@
 #### MiniGraph-Cactus
 
     cd Data/Graphs/MGC
-    for i in `seq 1 22`
+    for i in $( seq 22 )
     do
       wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2022_03_11_minigraph_cactus/chrom-graphs-hprc-v1.1-mc-chm13-full/chr${i}.vg
       vg convert -fW chr${i}.vg | gzip -c > chr${i}.gfa.gz
@@ -38,7 +38,7 @@
 #### PGGB
 
     cd Data/Graphs/PGGB
-    for i in `seq 1 22`
+    for i in $( seq 22 )
     do
       wget https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/scratch/2021_07_30_pggb/chroms/chr${i}.pan.fa.a2fb268.e820cd3.9ea71d8.smooth.gfa.gz && mv chr${i}.pan.fa.a2fb268.e820cd3.9ea71d8.smooth.gfa.gz chr${i}.gfa.gz
     done
@@ -51,11 +51,11 @@
 
 HG38 gaps
 
-    wget -O - https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.agp.gz | gzip -dc | awk '($5 == "N") || ($5 == "U")' | cut -f 1-3 > Data/Annotations/Annotationshg38.gaps.bed
+    wget -O - https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.agp.gz | gzip -dc | awk '($5 == "N") || ($5 == "U")' | cut -f 1-3 > Data/Annotations/hg38.gaps.bed
 
 Structural variations
 
-    wget -O - https://ftp.ncbi.nlm.nih.gov/pub/dbVar/data/Homo_sapiens/by_assembly/GRCh38/vcf/GRCh38.variant_call.all.vcf.gz | gzip -dc | sed '/^#/! s/^/chr/g' | grep -v "" > Data/Annotations/GRCh38.variant_call.all.vcf
+    wget -O - https://ftp.ncbi.nlm.nih.gov/pub/dbVar/data/Homo_sapiens/by_assembly/GRCh38/vcf/GRCh38.variant_call.all.vcf.gz | gzip -dc | sed '/^#/! s/^/chr/g' | grep -v "<ALT>" > Data/Annotations/GRCh38.variant_call.all.vcf
 
 Conservation, from PhyloP
 
@@ -85,40 +85,67 @@ Conserved regions (PSTs)
 
     wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/012/685/GCA_000012685.1_ASM1268v1/GCA_000012685.1_ASM1268v1_genomic.gtf.gz
     
-## Analysis with MiniGraph-Cactus
+## Analysis with MiniGraph-Cactus and PGGB
 
 ### Compute pansel results for different resolutions
 
     for resolution in 1000 10000 100000
     do
-        for i in `seq 1 22`
+        for i in $( seq 22 )
         do
-          sed "s/^/chr${i}\t/g" Data/Graphs/chr${i}.tsv
-        done > Results/MGC/${resolution}/chrall.tsv
+            /usr/bin/time ./pansel -i <( zcat Data/Graphs/MGC/chr${i}.gfa.gz ) -r GRCh38.0.chr${i} -n 91 -z ${resolution} > Results/MGC/${resolution}/chr${i}.tsv 2> Results/MGC/${resolution}/chr${i}.log
+        done
     done
-
-### Exclude gaps, and divide into different 8 bins (most conserved, to least conserved)
 
     for resolution in 1000 10000 100000
     do
-        python3 divideRegions.py Results/MGC/${resolution}/chrall.tsv ${resolution} Data/Annotations/hg38.gaps.bed 8 Results/MGC/${resolution}/chrall.regions
+        for i in $( seq 22 )
+        do
+            /usr/bin/time ./pansel -i <( zcat Data/Graphs/PGGB/chr${i}.gfa.gz ) -r grch38#chr${i} -n 91 -z ${resolution} > Results/PGGB/${resolution}/chr${i}.tsv 2> Results/PGGB/${resolution}/chr${i}.log
+        done
+    done
+
+### Gather results to a single file
+
+    for tool in MGC PGGB
+    do
+        for resolution in 1000 10000 100000
+        do
+            for i in $( seq 22 )
+            do
+              sed "s/^/chr${i}\t/g" Results/${tool}/${resolution}/chr${i}.tsv
+            done > Results/${tool}/${resolution}/chrall.tsv
+        done
+    done
+
+### Exclude gaps, divide results into different 8 bins (most conserved, to least conserved) and store bin intervals
+
+    for tool in MGC PGGB
+    do
+        for resolution in 1000 10000 100000
+        do
+            python3 divideRegions.py Results/${tool}/${resolution}/chrall.tsv ${resolution} Data/Annotations/hg38.gaps.bed 8 Results/${tool}/${resolution}/chrall.regions > Results/MGC/${resolution}/breaks.txt
+        done
     done
 
 ### Transform `pansel` results to BED format
 
-    for binSize in 1000 10000 100000
+    for tool in MGC PGGB
     do
-        for i in `seq 1 22`
+        for resolution in 1000 10000 100000
         do
-            sed "s/^/chr${i}\t/g" Results/MGC/${binSize}/chr${i}.tsv
-        done | awk '{print $1 "\t" ($3-1) "\t" $4 "\tbin_" NR "\t" ($5 / ($4 - $3)) "\t+"}' > Results/MGC/${binSize}/chrall.bed
+            for i in $( seq 22 )
+            do
+                sed "s/^/chr${i}\t/g" Results/${tool}/${resolution}/chr${i}.tsv
+            done | awk '{print $1 "\t" ($3-1) "\t" $4 "\tbin_" NR "\t" ($5 / ($4 - $3)) "\t+"}' > Results/${tool}/${resolution}/chrall.bed
+        done
     done
 
-### Fit to conserved/divergent distributions
+### Fit to conserved/divergent distributions (only for MGC for now on)
 
-    for binSize in 1000 10000 100000
+    for resolution in 1000 10000 100000
     do
-        Rscript getExtremes.R -i Results/MGC/${binSize}/chrall.bed -p 0.05 -P 0.05 -t Results/MGC/${binSize}/fit.png -o Results/MGC/${binSize}/fitConserved.bed -O Results/MGC/${binSize}/fitDivergent.bed &> Results/MGC/${binSize}/fit.log
+        Rscript getExtremes.R -i Results/MGC/${resolution}/chrall.bed -p 0.05 -P 0.05 -t Results/MGC/${resolution}/fit.png -o Results/MGC/${resolution}/fitConserved.bed -O Results/MGC/${resolution}/fitDivergent.bed &> Results/MGC/${resolution}/fit.log
     done
 
 ### Compute number of overlaps with structural variations
@@ -158,7 +185,7 @@ Conserved regions (PSTs)
         for i in $( seq 0 7 )
         do
             echo -e -n $i "\t"
-            awk '$10 > 0' Results/MGC/${resolution}/chrall.regions_${i}.coverage.refGene.bed | wc -l | tr -d "\n"
+            bedtools coverage -a Results/MGC/${resolution}/chrall.regions_${i}.bed -b Data/Annotations/gencode.v44.annotation_coding_exons.gtf | awk '$10 > 0' | wc -l | tr -d "\n"
             echo -e "\t#genes"
         done >> $out
     done
@@ -203,7 +230,7 @@ Conserved regions (PSTs)
         phastCons Data/Alignments/hprc-v1.1-mc-grch38-chr${i}.maf Data/Alignments/phyloFit.mod > Data/Alignments/phyloPscores_${i}.wig
     done
     # Transform WIG to BigWig
-    for i in $(seq 22); do echo sed "s/(null)/chr$i/g" Data/Alignments/phyloPscores_${i}.wig; done > Data/Alignments/phyloPscores.wig
+    for i in $( seq 22 ); do echo sed "s/(null)/chr$i/g" Data/Alignments/phyloPscores_${i}.wig; done > Data/Alignments/phyloPscores.wig
     wigToBigWig Data/Alignments/phyloPscores.wig Data/Genomes/hs.size Data/Alignments/phyloPscores.bw # Requires 40GB RAM
 
     for resolution in 1000 10000 100000
@@ -238,6 +265,11 @@ Conserved regions (PSTs)
         
 ### Compute ChromHmm
 
+    for i in Acet BivProm DNase EnhA EnhWk GapArtf HET PromF Quies ReprPC TSS Tx TxEnh TxEx TxWk znf
+    do
+        zgrep "_$i[1-9]" Data/Annotations/hg38_genome_100_segments.bed.gz > Data/Annotations/hg38_genome_100_segments.${i}.bed
+    done
+
     for resolution in 1000 10000 100000
     do
         for i in Results/MGC/${resolution}/chrall.regions_?.bed
@@ -254,8 +286,15 @@ Conserved regions (PSTs)
 
     for resolution in 1000 10000 100000
     do
-        Rscript gatherAll.R Results/MGC/${resolution}/variants.tsv Result/MGC/${resolution}/phyloP.tsv Results/MGC/${resolution}/phyloP_human.tsv Results/MGC/${resolution}/conserved.tsv Results/MGC/${resolution}/n_genes.tsv Results/MGC/${resolution}/chromHmm.tsv '#variants,conservation,cons. HS,PST,#genes,HET,Tx' Results/MGC/${resolution}/scores.png
+        Rscript gatherAll.R Results/MGC/${resolution}/variants.tsv Result/MGC/${resolution}/phyloP.tsv Results/MGC/${resolution}/phyloP_human.tsv Results/MGC/${resolution}/conserved.tsv Results/MGC/${resolution}/n_genes.tsv Results/MGC/${resolution}/chromHmm.tsv '#variants,conservation,cons. HS,PST,#genes,HET,Tx' Results/MGC/${resolution}/breaks.txt Results/MGC/${resolution}/scores.png
     done
+
+### Plot all ChromHMM results
+
+    for resolution in 1000 10000 100000
+    do
+    Rscript gatherAll.R Results/MGC/${resolution}/variants.tsv Results/MGC/${resolution}/phyloP.tsv Results/MGC/${resolution}/phyloP_human.tsv Results/MGC/${resolution}/n_genes.tsv Results/MGC/${resolution}/chromHmm.tsv Results/MGC/${resolution}/conserved.tsv 'Acet,BivProm,DNase,EnhA,EnhWk,GapArtf,HET,PromF,Quies,ReprPC,TSS,Tx,TxEnh,TxEx,TxWk,znf,#conserved_regions' Results/MGC/${resolution}/breaks.txt PanSel/Results/MGC/${resolution}/chromHmm.png
+done
 
 ### Extract subgraph for Bandage-NG (for NBPF20, aka ENSG00000162825.18)
 
@@ -278,8 +317,46 @@ Conserved regions (PSTs)
     # Sort, and visualize
     odgi sort -i tmp2.og -o - -O | odgi viz -i - -o tmp.png -s '#' -P -t 10
     odgi view -i tmp2.og -g > Results/NBPF20.gfa
+
+### Plot conserved/divergent regions on the chromosomes
+
+    for resolution in 1000 10000 100000
+    do
+        Rscript plotRegions.R Results/MGC/${resolution}/fitConserved.bed Results/MGC/${resolution}/fitDivergent.bed Results/MGC/${resolution}/regions.png
+    done
+
+## Compute conservation threshold
+
+    Rscript plotConservation.R /Scratch/mazytnicki/PanSel/Results/MGC/10000/chrall.bed 15000 Results/MGC/10000/conservation.png
     
 ## Comparison between MiniGraph-Cactus and PGGB
 
     Rscript compareResults.R Results Results/comparisonMGC_PGGB.png &> Results/comparisonMGC_PGGB.log
+
+## Analysis of *M xanthus*
+
+### Run `pansel`
+
+    pansel -i <( zcat Data/Graphs/M_xanthus/m_xanthus.full.gfa.gz ) -r GCA_000012685 -n 11 -z 1000 > Results/M_xanthus/pansel.out 2> Results/M_xanthus/pansel.log
+    awk '{print "CP000113.1\t" $2 "\t" $3 "\tregion_" NR "\t" $4}' Results/M_xanthus/pansel.out > Results/M_xanthus/pansel.bed
+
+### Split into bins
+
+    python3 divideRegions.py <( awk '{print "CP000113.1\t" $1 "\t" ($2-1) "\t" $3 "\t" $4}' Results/M_xanthus/pansel.out ) 1000 /dev/null 8 Results/M_xanthus/pansel.regions > Results/M_xanthus/breaks.txt
+
+### Compute coverage
+
+    for i in $( seq 0 7 )
+    do
+        in=Results/M_xanthus/pansel.regions_${i}.bed
+        out=${in%.bed}cov.bed
+        echo -e "#'chr'\t'start'\t'end'\t'Conservation'" > $out
+        bedtools coverage -a $in -b Data/Annotations/GCA_000012685.1_ASM1268v1_genomic.gtf.gz | cut -f 1,2,3,10  >> $out
+    done
+
+### Plot conservation score
+
+    Rscript gatherConservation.R Results/M_xanthus/pansel.regions_*cov.bed Results/M_xanthus/conservation.tsv "Conservation"
+
+    Rscript gatherAll.R Results/M_xanthus/conservation.tsv 'Conservation' Results/M_xanthus/breaks.txt Results/M_xanthus/scores.png
 
