@@ -293,8 +293,8 @@ Conserved regions (PSTs)
 
     for resolution in 1000 10000 100000
     do
-    Rscript gatherAll.R Results/MGC/${resolution}/variants.tsv Results/MGC/${resolution}/phyloP.tsv Results/MGC/${resolution}/phyloP_human.tsv Results/MGC/${resolution}/n_genes.tsv Results/MGC/${resolution}/chromHmm.tsv Results/MGC/${resolution}/conserved.tsv 'Acet,BivProm,DNase,EnhA,EnhWk,GapArtf,HET,PromF,Quies,ReprPC,TSS,Tx,TxEnh,TxEx,TxWk,znf,#conserved_regions' Results/MGC/${resolution}/breaks.txt PanSel/Results/MGC/${resolution}/chromHmm.png
-done
+        Rscript gatherAll.R Results/MGC/${resolution}/variants.tsv Results/MGC/${resolution}/phyloP.tsv Results/MGC/${resolution}/phyloP_human.tsv Results/MGC/${resolution}/n_genes.tsv Results/MGC/${resolution}/chromHmm.tsv Results/MGC/${resolution}/conserved.tsv 'Acet,BivProm,DNase,EnhA,EnhWk,GapArtf,HET,PromF,Quies,ReprPC,TSS,Tx,TxEnh,TxEx,TxWk,znf,#conserved_regions' Results/MGC/${resolution}/breaks.txt PanSel/Results/MGC/${resolution}/chromHmm.png
+    done
 
 ### Extract subgraph for Bandage-NG (for NBPF20, aka ENSG00000162825.18)
 
