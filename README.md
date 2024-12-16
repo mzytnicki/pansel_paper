@@ -346,17 +346,15 @@ Conserved regions (PSTs)
 
 ### Compute coverage
 
+    out=Results/M_xanthus/coverage.tsv
+    echo -e "category\tscore\ttype" > $out
     for i in $( seq 0 7 )
     do
-        in=Results/M_xanthus/pansel.regions_${i}.bed
-        out=${in%.bed}cov.bed
-        echo -e "#'chr'\t'start'\t'end'\t'Coverage'" > $out
-        bedtools coverage -a $in -b Data/Annotations/GCA_000012685.1_ASM1268v1_genomic.gtf.gz | cut -f 1,2,3,10  >> $out
-    done
+        echo -e -n "$i\t"
+        bedtools intersect -a Data/Annotations/GCA_000012685.1_ASM1268v1_genomic.gtf.gz -b Results/M_xanthus/pansel.regions_${i}.bed | awk 'BEGIN{s = 0}{s += $5 - $4 + 1}END{print s}' | tr -d "\n"
+        echo -e "\tCoverage"
+    done >> $out
 
-### Plot conservation score
+### Plot coverage score
 
-    Rscript gatherConservation.R Results/M_xanthus/pansel.regions_*cov.bed Results/M_xanthus/conservation.tsv "Coverage"
-
-    Rscript gatherAll.R Results/M_xanthus/conservation.tsv 'Coverage' Results/M_xanthus/breaks.txt Results/M_xanthus/scores.png
-
+    Rscript gatherAll.R Results/M_xanthus/coverage.tsv 'Coverage' Results/M_xanthus/breaks.txt Results/M_xanthus/scores.png
