@@ -350,13 +350,13 @@ Conserved regions (PSTs)
     do
         in=Results/M_xanthus/pansel.regions_${i}.bed
         out=${in%.bed}cov.bed
-        echo -e "#'chr'\t'start'\t'end'\t'Conservation'" > $out
+        echo -e "#'chr'\t'start'\t'end'\t'Coverage'" > $out
         bedtools coverage -a $in -b Data/Annotations/GCA_000012685.1_ASM1268v1_genomic.gtf.gz | cut -f 1,2,3,10  >> $out
     done
 
 ### Plot conservation score
 
-    Rscript gatherConservation.R Results/M_xanthus/pansel.regions_*cov.bed Results/M_xanthus/conservation.tsv "Conservation"
+    Rscript gatherConservation.R Results/M_xanthus/pansel.regions_*cov.bed Results/M_xanthus/conservation.tsv "Coverage"
 
-    Rscript gatherAll.R Results/M_xanthus/conservation.tsv 'Conservation' Results/M_xanthus/breaks.txt Results/M_xanthus/scores.png
+    Rscript gatherAll.R Results/M_xanthus/conservation.tsv 'Coverage' Results/M_xanthus/breaks.txt Results/M_xanthus/scores.png
 
